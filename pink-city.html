@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#160d2d">
+<title>Pink City: Night Drive</title>
+<style>
+:root{--pink:#ff4da6;--hot:#ff83c4;--ink:#fff3fa;--muted:#c6a7d0}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;padding:24px 14px;display:grid;place-items:center;color:var(--ink);font-family:system-ui,"Trebuchet MS",sans-serif;background:radial-gradient(ellipse at 50% 0%,#4a1954 0,#211338 45%,#100d24 100%)}
+main{width:min(100%,900px)}
+header{text-align:center;margin-bottom:16px}.eyebrow{color:var(--hot);font-size:.72rem;font-weight:800;letter-spacing:.2em;text-transform:uppercase;margin:0 0 7px}
+h1{font-size:clamp(2rem,7vw,3.5rem);line-height:.98;margin:0;text-transform:uppercase;text-shadow:0 0 24px #ff4da688;letter-spacing:.02em}
+h1 span{color:var(--pink)}.sub{color:var(--muted);margin:10px 0 0}
+.panel{overflow:hidden;border:1px solid #ffb4df66;border-radius:18px;background:#170f2e;box-shadow:0 18px 55px #07051299}
+canvas{display:block;width:100%;height:auto;touch-action:none}
+.bar{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;background:#241436;border-top:1px solid #ffb4df38}
+.stats{display:flex;gap:20px;font-size:.85rem;color:var(--muted)}.stats b{color:white}
+button,.back{display:inline-block;border:0;border-radius:10px;padding:10px 15px;background:var(--pink);color:white;font:inherit;font-weight:800;text-decoration:none;cursor:pointer;box-shadow:0 3px 0 #b82171}
+button:active{transform:translateY(2px);box-shadow:0 1px 0 #b82171}
+.controls{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:13px 2px 0;color:var(--muted);font-size:.86rem}.controls b{color:var(--ink)}
+.touch{display:none;gap:8px}.touch button{min-width:44px;min-height:42px;padding:6px 10px;background:#392047}
+@media(max-width:600px){body{padding:16px 9px}.bar{padding:10px;flex-wrap:wrap}.stats{gap:12px;font-size:.76rem}.controls{align-items:flex-start;flex-direction:column}.touch{display:flex}.back{margin-left:auto}}
+</style>
+</head>
+<body>
+<main>
+<header><p class="eyebrow">Neon nights · 1980s inspired arcade ride</p><h1><span>Pink City</span><br>Night Drive</h1><p class="sub">Cruise the neon strip, dodge traffic, and grab the glowing stars.</p></header>
+<section class="panel" aria-label="Pink City driving game">
+<canvas id="game" width="800" height="500" aria-label="Top down neon city driving game"></canvas>
+<div class="bar"><div class="stats"><span>Stars <b id="score">0</b> / 10</span><span>Best <b id="best">0</b></span><span>Lives <b id="lives">♥♥♥</b></span></div><button id="start">Start drive</button></div>
+</section>
+<div class="controls"><span><b>Drive:</b> WASD or arrow keys &nbsp; <b>Boost:</b> Space &nbsp; <b>Pause:</b> P</span><div class="touch"><button data-key="ArrowLeft">←</button><button data-key="ArrowDown">↓</button><button data-key="ArrowUp">↑</button><button data-key="ArrowRight">→</button></div><a class="back" href="index.html">← Pink Tetris</a></div>
+</main>
+<script>
+"use strict";
+const canvas=document.querySelector("#game"),ctx=canvas.getContext("2d"),W=800,H=500;
+const scoreEl=document.querySelector("#score"),livesEl=document.querySelector("#lives"),bestEl=document.querySelector("#best"),startBtn=document.querySelector("#start");
+let keys={},player,traffic=[],stars=[],score=0,lives=3,best=Number(localStorage.getItem("pink-city-best"))||0;
+let running=false,paused=false,last=0,spawnTimer=0,starTimer=0,roadOffset=0,flash=0;
+bestEl.textContent=best;
+function reset(){player={x:W/2,y:390,w:32,h:48,speed:0,hit:0};traffic=[];stars=[];score=0;lives=3;spawnTimer=0;starTimer=.5;roadOffset=0;flash=0;updateHud();running=true;paused=false;last=0;startBtn.textContent="Restart";requestAnimationFrame(frame)}
+function updateHud(){scoreEl.textContent=score;livesEl.textContent="♥".repeat(lives)+"♡".repeat(3-lives);bestEl.textContent=best}
+function roundRect(x,y,w,h,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill()}
+function building(x,y,w,h,seed){ctx.fillStyle="#17162c";ctx.fillRect(x,y,w,h);ctx.strokeStyle="#514064";ctx.lineWidth=2;ctx.strokeRect(x+1,y+1,w-2,h-2);let cols=Math.max(1,Math.floor(w/19)),rows=Math.max(1,Math.floor(h/25));for(let ry=0;ry<rows;ry++)for(let cx=0;cx<cols;cx++){let n=(seed+cx*7+ry*13)%9;if(n<5){ctx.fillStyle=n===0?"#f775be":"#ffbd7244";ctx.fillRect(x+6+cx*19,y+7+ry*25,7,11)}}}
+function scenery(dt){ctx.fillStyle="#100d24";ctx.fillRect(0,0,W,H);let shift=(roadOffset%150);for(let y=-150+shift,i=0;y<H;y+=150,i++){building(22,y,113,126,i+3);building(665,y+35,111,105,i+8);ctx.fillStyle="#381b42";ctx.fillRect(145,y,20,150);ctx.fillRect(635,y,20,150);ctx.fillStyle="#ff4da6";ctx.globalAlpha=.55;ctx.fillRect(162,y,2,150);ctx.fillRect(636,y,2,150);ctx.globalAlpha=1}
+ctx.fillStyle="#30253d";ctx.fillRect(170,0,460,H);ctx.fillStyle="#ff4da6";ctx.globalAlpha=.7;ctx.fillRect(170,0,3,H);ctx.fillRect(627,0,3,H);ctx.globalAlpha=1;ctx.fillStyle="#494050";ctx.fillRect(181,0,9,H);ctx.fillRect(610,0,9,H);
+ctx.fillStyle="#f8c2e333";for(let y=-70+shift;y<H;y+=70)ctx.fillRect(185,y,3,35),ctx.fillRect(612,y,3,35);
+ctx.strokeStyle="#ffe38a99";ctx.lineWidth=4;ctx.setLineDash([27,24]);ctx.lineDashOffset=-roadOffset;for(let x of [330,470]){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}ctx.setLineDash([]);
+ctx.fillStyle="#ff96d622";ctx.fillRect(193,0,413,H);
+}
+function car(x,y,color,playerCar){ctx.save();ctx.translate(x,y);if(playerCar){ctx.shadowColor="#ff4da6";ctx.shadowBlur=18}roundRect(-16,-23,32,46,8,color);roundRect(-11,-15,22,13,"#211a37");roundRect(-11,4,22,10,"#211a37");ctx.fillStyle="#fff2b8";ctx.fillRect(-13,-22,7,3);ctx.fillRect(6,-22,7,3);ctx.fillStyle="#ff557c";ctx.fillRect(-13,19,7,3);ctx.fillRect(6,19,7,3);ctx.fillStyle="#25203a";ctx.fillRect(-19,-13,3,10);ctx.fillRect(16,-13,3,10);ctx.restore()}
+function drawStar(s){ctx.save();ctx.translate(s.x,s.y);ctx.rotate(s.spin);ctx.shadowColor="#ffe98a";ctx.shadowBlur=16;ctx.fillStyle="#ffe98a";ctx.beginPath();for(let i=0;i<10;i++){let r=i%2?6:13,a=-Math.PI/2+i*Math.PI/5;ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r)}ctx.closePath();ctx.fill();ctx.restore()}
+function spawnTraffic(){let lanes=[260,400,540],lane=lanes[Math.random()*lanes.length|0],direction=Math.random()<.78?1:-1;traffic.push({x:lane,y:direction>0?-45:H+45,w:32,h:46,v:direction*(100+Math.random()*100),c:["#45d9dc","#ffc45e","#bd83ff","#ff7a81"][Math.random()*4|0]})}
+function drawHud(){ctx.fillStyle="#0e0a20bb";ctx.fillRect(12,12,200,36);ctx.font="bold 14px system-ui";ctx.fillStyle="#ffe7f4";ctx.fillText("NIGHT DRIVE  •  "+String(Math.floor(Date.now()/1000)%60).padStart(2,"0"),23,35);if(flash>0){ctx.fillStyle="#ff5aa4";ctx.globalAlpha=flash;ctx.fillRect(0,0,W,H);ctx.globalAlpha=1}}
+function frame(t){if(!running)return;let dt=last?Math.min((t-last)/1000,.04):0;last=t;if(!paused){roadOffset+=dt*180;spawnTimer-=dt;starTimer-=dt;flash=Math.max(0,flash-dt*2.8);if(spawnTimer<=0){spawnTraffic();spawnTimer=.85+Math.random()*.65}if(starTimer<=0){stars.push({x:220+Math.random()*360,y:-18,spin:0});starTimer=1.1+Math.random()*.7}
+let ax=(keys.ArrowRight||keys.d?1:0)-(keys.ArrowLeft||keys.a?1:0),ay=(keys.ArrowDown||keys.s?1:0)-(keys.ArrowUp||keys.w?1:0);
+let boost=keys[" "]?1.45:1;player.x+=ax*250*dt;player.y+=ay*210*dt;player.x=Math.max(210,Math.min(590,player.x));player.y=Math.max(65,Math.min(455,player.y));traffic.forEach(v=>{v.y+=v.v*dt*boost});traffic=traffic.filter(v=>v.y>-70&&v.y<H+70);stars.forEach(s=>{s.y+=190*dt;s.spin+=dt*2});stars=stars.filter(s=>s.y<H+20);
+if(player.hit>0)player.hit-=dt;for(let i=traffic.length-1;i>=0;i--){let v=traffic[i];if(Math.abs(v.x-player.x)<28&&Math.abs(v.y-player.y)<38&&player.hit<=0){traffic.splice(i,1);lives--;player.hit=1.2;flash=.35;updateHud();if(lives<=0){running=false;paused=false;startBtn.textContent="Drive again";break}}}
+for(let i=stars.length-1;i>=0;i--){let s=stars[i];if(Math.abs(s.x-player.x)<26&&Math.abs(s.y-player.y)<29){stars.splice(i,1);score++;if(score>best){best=score;localStorage.setItem("pink-city-best",best)}updateHud();if(score>=10){running=false;startBtn.textContent="Play again";break}}}
+}
+scenery(dt);stars.forEach(drawStar);traffic.forEach(v=>car(v.x,v.y,v.c,false));if(player&&player.hit%0.18<.09)car(player.x,player.y,"#ff4da6",true);drawHud();
+if(!running){ctx.fillStyle="#100a22cc";ctx.fillRect(0,0,W,H);ctx.textAlign="center";ctx.fillStyle="#fff";ctx.font="800 38px system-ui";let title=score>=10?"YOU OWN THE NIGHT":lives<=0?"RIDE OVER":"READY TO RIDE?";ctx.fillText(title,W/2,220);ctx.font="18px system-ui";ctx.fillStyle="#ffd9ec";ctx.fillText(score>=10?"10 stars collected — beautiful drive!":lives<=0?"Stars collected: "+score+" · Hit Drive again to retry":"Hit Start Drive to cruise the strip",W/2,258);ctx.textAlign="left"}
+else if(paused){ctx.fillStyle="#100a22aa";ctx.fillRect(0,0,W,H);ctx.textAlign="center";ctx.fillStyle="#fff";ctx.font="800 36px system-ui";ctx.fillText("PAUSED",W/2,245);ctx.textAlign="left"}
+else requestAnimationFrame(frame)}
+function togglePause(){if(!player||!running)return;paused=!paused;if(!paused){last=0;requestAnimationFrame(frame)}else requestAnimationFrame(frame)}
+startBtn.addEventListener("click",reset);
+document.addEventListener("keydown",e=>{let k=e.key.length===1?e.key.toLowerCase():e.key;if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"," "].includes(e.key))e.preventDefault();keys[k]=true;if(k==="p"&&running)togglePause()});
+document.addEventListener("keyup",e=>{let k=e.key.length===1?e.key.toLowerCase():e.key;keys[k]=false});
+document.querySelectorAll("[data-key]").forEach(b=>{let k=b.dataset.key,down=e=>{e.preventDefault();keys[k]=true},up=e=>{e.preventDefault();keys[k]=false};b.addEventListener("pointerdown",down);b.addEventListener("pointerup",up);b.addEventListener("pointerleave",up);b.addEventListener("pointercancel",up)});
+function splash(){scenery(0);ctx.fillStyle="#100a22bb";ctx.fillRect(0,0,W,H);ctx.textAlign="center";ctx.fillStyle="#fff";ctx.font="800 38px system-ui";ctx.fillText("READY TO RIDE?",W/2,220);ctx.font="18px system-ui";ctx.fillStyle="#ffd9ec";ctx.fillText("Hit Start Drive to cruise the strip",W/2,258);ctx.textAlign="left"}splash();
+</script>
+</body>
+</html>
